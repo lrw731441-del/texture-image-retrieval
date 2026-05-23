@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>纹理图像检索系统</title>
+<style>
+  :root {
+    --bg: #f5f5f5; --card: #fff; --text: #333; --muted: #888;
+    --accent: #4f46e5; --accent-hover: #4338ca; --border: #e5e7eb;
+    --radius: 12px; --shadow: 0 1px 3px rgba(0,0,0,.08);
+    --green: #059669; --orange: #ea580c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+  }
+  .header { background: var(--card); border-bottom: 1px solid var(--border); padding: 20px 0; }
+  .header h1 { max-width: 1100px; margin: 0 auto; padding: 0 24px; font-size: 1.4rem; font-weight: 700; }
+  .header p { max-width: 1100px; margin: 4px auto 0; padding: 0 24px; color: var(--muted); font-size: .9rem; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+  /* Mode selector */
+  .mode-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .mode-btn {
+    padding: 8px 18px; border: 1.5px solid var(--border); border-radius: 20px;
+    background: var(--card); cursor: pointer; font-size: .85rem; font-weight: 500;
+    transition: all .15s;
+  }
+  .mode-btn:hover { border-color: var(--accent); }
+  .mode-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .mode-tag { font-size: .7rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .mode-tag.global { background: #dbeafe; color: #1d4ed8; }
+  .mode-tag.local { background: #fef3c7; color: #b45309; }
+  .mode-tag.rerank { background: #dcfce7; color: #15803d; }
+
+  /* Upload */
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: var(--radius); padding: 48px 24px;
+    text-align: center; cursor: pointer; transition: border-color .2s, background .2s;
+    background: var(--card);
+  }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: #eef2ff; }
+  .upload-zone .icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .upload-zone .hint { color: var(--muted); font-size: .9rem; margin-top: 6px; }
+  .upload-zone input { display: none; }
+
+  .query-preview {
+    display: flex; align-items: flex-start; gap: 20px; margin-top: 20px;
+    padding: 20px; background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  .query-preview img { width: 160px; height: 160px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+  .query-info h3 { font-size: 1rem; margin-bottom: 6px; }
+  .query-info .meta { color: var(--muted); font-size: .85rem; }
+
+  .loading { display: none; text-align: center; padding: 40px; }
+  .loading.show { display: block; }
+  .spinner {
+    width: 36px; height: 36px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin .7s linear infinite; margin: 0 auto 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .results-section { margin-top: 28px; }
+  .results-section h2 { font-size: 1.1rem; margin-bottom: 16px; }
+  .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
+  .result-card {
+    background: var(--card); border-radius: var(--radius); overflow: hidden;
+    box-shadow: var(--shadow); transition: transform .15s;
+  }
+  .result-card:hover { transform: translateY(-2px); }
+  .result-card img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  .result-card .info { padding: 10px 12px; }
+  .result-card .rank { font-weight: 700; font-size: .85rem; }
+  .result-card .score { font-size: .8rem; font-weight: 600; color: var(--accent); }
+  .result-card .name { color: var(--muted); font-size: .75rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .empty { text-align: center; color: var(--muted); padding: 40px; }
+  .error { background: #fef2f2; color: #dc2626; padding: 12px 20px; border-radius: var(--radius); margin-top: 16px; font-size: .9rem; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div id="accessToken" data-token="__ACCESS_TOKEN__" style="display:none"></div>
+
+<div class="header">
+  <h1>纹理图像检索系统</h1>
+  <p>上传图片，检索纹理相似的图像 — 支持全局 / 局部纹理 / 模板重排 三种检索模式</p>
+</div>
+
+<div class="container">
+
+  <div class="mode-bar">
+    <button class="mode-btn active" data-mode="global">
+      全局检索 <span style="font-size:.75rem;color:var(--muted)">速度快</span>
+    </button>
+    <button class="mode-btn" data-mode="local">
+      局部纹理 <span style="font-size:.75rem;color:var(--muted)">纹理准</span>
+    </button>
+    <button class="mode-btn" data-mode="rerank">
+      模板重排 <span style="font-size:.75rem;color:var(--muted)">最精确</span>
+    </button>
+    <a id="statsLink" href="#" style="margin-left:auto;font-size:.8rem;color:var(--muted);text-decoration:none;align-self:center">访问统计</a>
+  </div>
+
+  <div class="upload-zone" id="uploadZone">
+    <div class="icon">&#128269;</div>
+    <div><strong>点击上传</strong> 或拖拽图片到此处</div>
+    <div class="hint">支持 JPG / PNG / WebP / BMP / TIFF</div>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <div class="query-preview hidden" id="queryPreview">
+    <img id="queryImg" src="" alt="Query">
+    <div class="query-info">
+      <h3 id="queryName"></h3>
+      <div class="meta" id="queryMeta"></div>
+    </div>
+  </div>
+
+  <div class="error hidden" id="errorMsg"></div>
+
+  <div class="loading" id="loading"><div class="spinner"></div><div>正在检索...</div></div>
+
+  <div class="results-section hidden" id="resultsSection">
+    <h2>检索结果 <span id="modeLabel" style="font-weight:400;color:var(--muted);font-size:.85rem"></span></h2>
+    <div class="results-grid" id="resultsGrid"></div>
+  </div>
+
+  <div class="empty hidden" id="emptyMsg">未找到相似图片，请尝试其他查询图像或切换模式。</div>
+
+</div>
+
+<script>
+let currentMode = 'global';
+
+// Global token — read once from the page
+const ACCESS_TOKEN = document.getElementById('accessToken').dataset.token;
+document.getElementById('statsLink').href = `/stats?token=${encodeURIComponent(ACCESS_TOKEN)}`;
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+  });
+});
+
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+const queryPreview = document.getElementById('queryPreview');
+const queryImg = document.getElementById('queryImg');
+const queryName = document.getElementById('queryName');
+const queryMeta = document.getElementById('queryMeta');
+const loading = document.getElementById('loading');
+const errorMsg = document.getElementById('errorMsg');
+const resultsSection = document.getElementById('resultsSection');
+const resultsGrid = document.getElementById('resultsGrid');
+const modeLabel = document.getElementById('modeLabel');
+const emptyMsg = document.getElementById('emptyMsg');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length > 0) handleFile(fileInput.files[0]);
+});
+
+async function handleFile(file) {
+  errorMsg.classList.add('hidden'); emptyMsg.classList.add('hidden');
+  const reader = new FileReader();
+  reader.onload = e => {
+    queryImg.src = e.target.result;
+    queryName.textContent = file.name;
+    queryMeta.textContent = `${(file.size/1024).toFixed(1)} KB · ${file.type||'image'}`;
+    queryPreview.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+
+  loading.classList.add('show'); resultsSection.classList.add('hidden');
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('top_k', '12');
+  formData.append('mode', currentMode);
+
+  try {
+    const resp = await fetch(`/search?token=${encodeURIComponent(ACCESS_TOKEN)}`, { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!resp.ok) { showError(data.error || '检索失败'); return; }
+    if (data.results.length === 0) { emptyMsg.classList.remove('hidden'); return; }
+    renderResults(data);
+    resultsSection.classList.remove('hidden');
+  } catch (err) {
+    showError('网络错误，请确保服务正在运行');
+  } finally {
+    loading.classList.remove('show');
+  }
+}
+
+function renderResults(data) {
+  const modeNames = { global: '全局检索', local: '局部纹理匹配', rerank: '模板匹配重排' };
+  modeLabel.textContent = `[${modeNames[data.mode] || data.mode}]`;
+
+  resultsGrid.innerHTML = '';
+  data.results.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.innerHTML = `
+      <img src="/images/${r.path}?token=${encodeURIComponent(ACCESS_TOKEN)}" alt="${r.stem}" loading="lazy"
+           onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22200%22><rect fill=%22%23f3f4f6%22 width=%22200%22 height=%22200%22/><text fill=%22%239ca3af%22 x=%22100%22 y=%22110%22 text-anchor=%22middle%22 font-size=%2214%22>无图片</text></svg>'">
+      <div class="info">
+        <span class="rank">#${r.rank}</span>
+        <span class="score">${r.score.toFixed(4)}</span>
+        <span class="mode-tag ${r.mode || 'global'}">${r.mode || 'global'}</span>
+        <div class="name">${r.stem}</div>
+      </div>
+    `;
+    resultsGrid.appendChild(card);
+  });
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg; errorMsg.classList.remove('hidden');
+}
+</script>
+</body>
+</html>

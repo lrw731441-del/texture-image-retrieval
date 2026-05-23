@@ -26,6 +26,9 @@ result*.png
 .vscode/
 .idea/
 
-# OS
-.DS_Store
-Thumbs.db
+# Deployment scripts (contain server credentials — use .example.py as template)
+deploy.py
+update.py
+
+# Build artifacts
+texture-search.tar.gz

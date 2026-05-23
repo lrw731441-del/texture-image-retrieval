@@ -1,0 +1,12 @@
+.git
+__pycache__
+*.pyc
+.claude
+venv
+.venv
+env
+*.egg-info
+.gitignore
+README.md
+generate_test_images.py
+feature_extractor.py
