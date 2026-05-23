@@ -23,14 +23,14 @@
 ```
                     ┌─────────────────────────────────────────┐
   Query Image       │  Feature Extraction Pipeline            │  Ranking
-  ┌────────┐        │                                        │
-  │  输入   │──────▶ │  LBP (R=1,2,3) × 3 image scales        │──▶ #1  0.998
-  │ 图片   │        │  + HOG spatial pyramid (1×1 + 2×2)      │──▶ #2  0.944
+  ┌────────┐        │                                         │
+  │  输入  │─────▶  │  LBP (R=1,2,3) × 3 image scales         │──▶ #1  0.998
+  │  图片  │        │  + HOG spatial pyramid (1×1 + 2×2)      │──▶ #2  0.944
   │        │        │  + DCT perceptual hash (pHash)          │──▶ #3  0.938
   └────────┘        │  + ResNet-18 CNN (layer3 + layer4)      │──▶ ...
-                    │         ↓                                │
-                    │  Group-weighted L2-normalised fusion     │
-                    │  (LBP×4, HOG×1.5, pHash×1.5, CNN×0.5)  │
+                    │         ↓                               │
+                    │  Group-weighted L2-normalised fusion    │
+                    │  (LBP×4, HOG×1.5, pHash×1.5, CNN×0.5)   │
                     └─────────────────────────────────────────┘
 ```
 
