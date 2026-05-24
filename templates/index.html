@@ -103,7 +103,11 @@
     <button class="mode-btn" data-mode="rerank">
       模板重排 <span style="font-size:.75rem;color:var(--muted)">最精确</span>
     </button>
-    <a id="statsLink" href="#" style="margin-left:auto;font-size:.8rem;color:var(--muted);text-decoration:none;align-self:center">访问统计</a>
+    <label style="display:flex;align-items:center;gap:6px;margin-left:auto;font-size:.85rem;cursor:pointer">
+      <input type="checkbox" id="autoCrop" style="accent-color:var(--accent)">
+      自动裁衣
+    </label>
+    <a id="statsLink" href="#" style="font-size:.8rem;color:var(--muted);text-decoration:none;align-self:center">访问统计</a>
   </div>
 
   <div class="upload-zone" id="uploadZone">
@@ -115,9 +119,11 @@
 
   <div class="query-preview hidden" id="queryPreview">
     <img id="queryImg" src="" alt="Query">
+    <img id="cropImg" src="" alt="Crop" style="display:none;border:2px solid var(--accent)">
     <div class="query-info">
       <h3 id="queryName"></h3>
       <div class="meta" id="queryMeta"></div>
+      <div class="meta" id="cropMeta" style="display:none;color:var(--accent);font-weight:600"></div>
     </div>
   </div>
 
@@ -191,10 +197,24 @@ async function handleFile(file) {
   formData.append('mode', currentMode);
 
   try {
-    const resp = await fetch(`/search?token=${encodeURIComponent(ACCESS_TOKEN)}`, { method: 'POST', body: formData });
+    const cropOn = document.getElementById('autoCrop').checked;
+  const url = `/search?token=${encodeURIComponent(ACCESS_TOKEN)}&mode=${encodeURIComponent(currentMode)}&auto_crop=${cropOn}`;
+  const resp = await fetch(url, { method: 'POST', body: formData });
     const data = await resp.json();
     if (!resp.ok) { showError(data.error || '检索失败'); return; }
     if (data.results.length === 0) { emptyMsg.classList.remove('hidden'); return; }
+    // Show cropped preview if auto_crop was applied
+    const cropImg = document.getElementById('cropImg');
+    const cropMeta = document.getElementById('cropMeta');
+    if (data.crop_preview) {
+      cropImg.src = data.crop_preview;
+      cropImg.style.display = 'block';
+      cropMeta.textContent = '已裁剪至服装区域';
+      cropMeta.style.display = 'block';
+    } else {
+      cropImg.style.display = 'none';
+      cropMeta.style.display = 'none';
+    }
     renderResults(data);
     resultsSection.classList.remove('hidden');
   } catch (err) {

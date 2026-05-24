@@ -192,6 +192,23 @@ set ROOT_PWD=<服务器密码> && python update.py
 
 > **注意：** `deploy.py` 和 `update.py` 包含服务器连接信息，提交到公开仓库前请确认已脱敏或加入 `.gitignore`。
 
+### Adding New Images / 新增图片
+
+部署后新增图片到图库，**无需重建 Docker 镜像**：
+
+```bash
+# 1. Upload new images to server / 上传新图到服务器
+scp your-image.jpg ubuntu@<IP>:/home/ubuntu/texture-search/images/
+
+# 2. Rebuild feature index inside container / 在容器内重建索引
+sudo docker exec texture-search python build_index.py --local_index --augment 4
+
+# 3. Restart to reload index / 重启容器加载新索引
+sudo docker restart texture-search
+```
+
+4. 刷新网页，新图片即可被检索。
+
 ---
 
 ## Performance / 性能指标

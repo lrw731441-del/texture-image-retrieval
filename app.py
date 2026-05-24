@@ -1,5 +1,6 @@
 """FastAPI web service for texture image search — supports global, local, and rerank modes."""
 
+import base64
 import json
 import os
 import secrets
@@ -17,6 +18,7 @@ from utils import (
     DEFAULT_PATCH_SCALES,
     DEFAULT_PATCH_SIZE,
     DEFAULT_PATCH_STRIDE,
+    extract_clothing_region,
     extract_dense_patches,
     extract_features,
     extract_local_texture,
@@ -268,6 +270,7 @@ async def search(
     top_k: int = Query(default=10, le=50),
     threshold: float = Query(default=0.0, ge=0.0, le=1.0),
     mode: str = Query(default="global", pattern="^(global|local|rerank)$"),
+    auto_crop: bool = Query(default=False),
     token: str = Query(default=""),
 ):
     global _rate_blocked_count, _token_blocked_count
@@ -294,6 +297,26 @@ async def search(
         tmp_path = tmp.name
 
     try:
+        # Auto clothing-region crop (model-photo → fabric matching)
+        crop_preview_b64 = ""
+        if auto_crop:
+            img = load_image(tmp_path)
+            h0, w0 = img.shape[:2]
+            cropped = extract_clothing_region(img)
+            h1, w1 = cropped.shape[:2]
+            if h1 > 0 and w1 > 0:
+                import cv2
+                # Save cropped image for search
+                crop_path = tmp_path + "_crop.jpg"
+                cv2.imwrite(crop_path, cropped)
+                tmp_path = crop_path
+                # Encode as base64 for frontend preview
+                _, buf = cv2.imencode(".jpg", cropped)
+                crop_preview_b64 = base64.b64encode(buf.tobytes()).decode()
+                print(f"[ACCESS] Auto-crop: {w0}x{h0} → {w1}x{h1}")
+            else:
+                auto_crop = False  # fallback: no crop applied
+
         if mode == "local":
             results, error = _search_local(tmp_path, top_k, threshold)
             if error:
@@ -308,12 +331,16 @@ async def search(
         _log_access(ip, file.filename, mode, "ok", elapsed)
         print(f"[ACCESS] {ip} | {mode} | {file.filename} | {elapsed:.0f}ms | {len(results)} results")
 
-        return {
+        resp = {
             "query": file.filename,
             "mode": mode,
+            "auto_crop": bool(auto_crop),
             "total_indexed": len(global_meta),
             "results": results,
         }
+        if crop_preview_b64:
+            resp["crop_preview"] = f"data:image/jpeg;base64,{crop_preview_b64}"
+        return resp
     except Exception as e:
         _log_access(ip, file.filename, mode, "error", (time.time() - t_start) * 1000)
         return JSONResponse(status_code=400, content={"error": f"Search failed: {e}"})
